@@ -216,3 +216,25 @@ model_sr.fit(y_range_sliced.detach().numpy().reshape(-1, 1), learned_drift_slice
 
 # Print the discovered equations
 print(model_sr.equations_)
+
+from pysr import PySRRegressor
+
+# Initialize the PySR regressor for the true drift function
+# We can use similar parameters as before, but may need to adjust based on the expected complexity
+model_sr_true = PySRRegressor(
+    model_selection="best",  # Selects the best model based on complexity vs accuracy
+    niterations=100,         # Number of iterations to run
+    binary_operators=["+", "*", "-", "/"],
+    unary_operators=["neg"], # The true drift is linear, so we only need negation
+    # You can add custom operators here if needed
+    # You might also want to specify complexity_of_operators and complexity_of_constants
+)
+
+# Fit the model to the true drift data
+# PySR expects input X to be a 2D array, and y to be a 1D array
+# We need to reshape y_range to be 2D and squeeze true_drift_formula to be 1D
+model_sr_true.fit(y_range.detach().numpy().reshape(-1, 1), true_drift_formula.detach().numpy().squeeze())
+
+# Print the discovered equations for the true drift
+print("Discovered equations for the true drift:")
+print(model_sr_true.equations_)
