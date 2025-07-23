@@ -141,6 +141,64 @@ def plot_results(actual, predicted, lookback):
     plt.grid(True)
     plt.show()
 
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from sklearn.metrics import mean_absolute_error
+
+def independent_test_on_pairs(pairs, features_scaler_combined, target_scaler_combined, model, device):
+    # Visualize one pair (the second in the list)
+    test_pair_np = pairs[1].cpu().numpy() if torch.is_tensor(pairs[1]) else pairs[1]
+    inv_pair = features_scaler_combined.inverse_transform(test_pair_np)
+    
+    plt.figure()
+    plt.plot(inv_pair[:, 1])
+    plt.title("Plot of __[:, 1]")
+    plt.figure()
+    plt.plot(inv_pair[:, 0])
+    plt.title("Plot of __[:, 0]")
+    plt.show()
+
+    # Prepare input tensor for model
+    test_tensor = torch.tensor(test_pair_np, dtype=torch.float32).unsqueeze(0).to(device)
+    y0 = test_tensor[:, 0, 1].unsqueeze(1)
+    ts = torch.linspace(0, 1, test_tensor.shape[1]).to(device)
+
+    model.eval()
+    with torch.no_grad():
+        pred = model(ts, y0, test_tensor)[-1]
+        pred_orig = target_scaler_combined.inverse_transform(pred.cpu().numpy().reshape(-1, 1))
+        print(pred_orig)
+        print("Prediction successful for one pair.")
+
+    predicted_values_all_pairs = []
+    actual_values_all_pairs = []
+
+    # Evaluate over all pairs
+    model.eval()
+    with torch.no_grad():
+        for pair in pairs:
+            pair_np = pair.cpu().numpy() if torch.is_tensor(pair) else pair
+            test_tensor = torch.tensor(pair_np, dtype=torch.float32).unsqueeze(0).to(device)
+            y0 = test_tensor[:, 0, 1].unsqueeze(1)
+            ts = torch.linspace(0, 1, test_tensor.shape[1]).to(device)
+            pred = model(ts, y0, test_tensor)[-1]
+            pred_original = target_scaler_combined.inverse_transform(pred.cpu().numpy().reshape(-1, 1))[0, 0]
+            actual_original = features_scaler_combined.inverse_transform(pair_np)[-1, 1]
+            predicted_values_all_pairs.append(pred_original)
+            actual_values_all_pairs.append(actual_original)
+            print(pred_original, actual_original)
+
+    predicted_values_all_pairs = np.array(predicted_values_all_pairs)
+    actual_values_all_pairs = np.array(actual_values_all_pairs)
+    mean_deviation = np.mean(predicted_values_all_pairs - actual_values_all_pairs)
+    print(f"Mean deviation over all pairs: {mean_deviation:.4f}")
+    mae = mean_absolute_error(actual_values_all_pairs, predicted_values_all_pairs)
+    print(f"Mean Absolute Error over all pairs: {mae:.4f}")
+
+# Example usage in your main function:
+# independent_test_on_pairs(pairs, features_scaler_combined, target_scaler_combined, model, device)
+
 # --- Main Execution ---
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -156,6 +214,9 @@ def main():
     actual, predicted = evaluate_model(model, test_loader, tgt_scaler, device, lookback=14)
     plot_results(actual, predicted, lookback=14)
     print("Processing complete.")
+
+    print("Begin independent testing...")
+    independent_test_on_pairs(pairs, features_scaler_combined, target_scaler_combined, model, device)
 
 if __name__ == "__main__":
     main()
