@@ -20,8 +20,9 @@ usdt_cad = yf.download('USDCAD=X', start=start_date, end=end_date)['Close'].sque
 btc_usd = yf.download('BTC-USD', start=start_date, end=end_date)['Close'].squeeze()     
 oil_price = yf.download('CL=F', start=start_date, end=end_date)['Close'].squeeze()       
 gas_price = yf.download('NG=F', start=start_date, end=end_date)['Close'].squeeze()       
-interest_rate = yf.download('^IRX', start=start_date, end=end_date)['Close'].squeeze()   
-
+interest_rate = yf.download('^IRX', start=start_date, end=end_date)['Close'].squeeze()  
+crude_oil= yf.download('BZ=F',start=start_date, end=end_date)['Close'].squeeze() 
+#imo
 # ---------------------------- Step 2: Build DataFrame ----------------------------
 # Create a DataFrame consolidating all financial series
 data = pd.DataFrame({
@@ -31,7 +32,8 @@ data = pd.DataFrame({
     'BTC_Price': btc_usd,
     'Oil_Price': oil_price,
     'Gas_Price': gas_price,
-    'Interest_Rate': interest_rate
+    'Interest_Rate': interest_rate,  
+    'Crude_Oil': crude_oil
 })
 
 # Add derived variables:
@@ -46,7 +48,7 @@ data['BTC_USDT_ratio'] = data['BTC_Price'] / data['USDT_USD']
 # - Endogenous: USDT/RUB exchange rate (treated as endogenous for model testing)
 # - Instruments: BTC/USDT ratio, USDT/CAD price, and gas price
 iv_model = IV2SLS(
-    dependent=data['USDT_RUB_price'],
+    dependent=data['Crude_Oil'],
     exog=sm.add_constant(data[['Oil_Price', 'Interest_Rate']]),
     endog=data['USDT_RUB_price'],
     instruments=data[['BTC_USDT_ratio', 'USDT_CAD_price', 'Gas_Price']]
