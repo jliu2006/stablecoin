@@ -1,3 +1,6 @@
+# file is saved as new mirror on device
+
+
 # ---------------------------- Imports ----------------------------
 # Import required libraries for data handling, financial data retrieval, regression, and plotting
 import yfinance as yf
