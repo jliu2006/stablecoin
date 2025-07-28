@@ -1,8 +1,9 @@
-# file is saved as new mirror on device
-
-
+#from updated mirror
 # ---------------------------- Imports ----------------------------
 # Import required libraries for data handling, financial data retrieval, regression, and plotting
+import matplotlib
+matplotlib.use('TkAgg')  # Use TkAgg backend to enable interactive plot display
+
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -16,7 +17,7 @@ start_date = '2020-01-01'
 end_date = '2025-01-01'
 
 # Download daily closing prices for relevant financial instruments from Yahoo Finance
-# USD Tether to USD,Russian Ruble to USD,USD to Canadian Dollar,Bitcoin to USD,Crude Oil Futures,Natural Gas Futures,13-week Treasury Bill Rate
+# USD Tether to USD,Russian Ruble to USD,USD to Canadian Dollar,Bitcoin to USD,Crude Oil Futures,Natural Gas Futures,13-week Treasury Bill Rate, MOEX Index
 usdt_usd = yf.download('USDT-USD', start=start_date, end=end_date)['Close'].squeeze()   
 rub_usd = yf.download('RUB=X', start=start_date, end=end_date)['Close'].squeeze()       
 usdt_cad = yf.download('USDCAD=X', start=start_date, end=end_date)['Close'].squeeze()   
@@ -24,8 +25,8 @@ btc_usd = yf.download('BTC-USD', start=start_date, end=end_date)['Close'].squeez
 oil_price = yf.download('CL=F', start=start_date, end=end_date)['Close'].squeeze()       
 gas_price = yf.download('NG=F', start=start_date, end=end_date)['Close'].squeeze()       
 interest_rate = yf.download('^IRX', start=start_date, end=end_date)['Close'].squeeze()  
-crude_oil= yf.download('BZ=F',start=start_date, end=end_date)['Close'].squeeze() 
-#imo
+moex_index = yf.download('IMOEX.ME', start=start_date, end=end_date)['Close'].squeeze() 
+
 # ---------------------------- Step 2: Build DataFrame ----------------------------
 # Create a DataFrame consolidating all financial series
 data = pd.DataFrame({
@@ -36,12 +37,12 @@ data = pd.DataFrame({
     'Oil_Price': oil_price,
     'Gas_Price': gas_price,
     'Interest_Rate': interest_rate,  
-    'Crude_Oil': crude_oil
+    'MOEX_Index': moex_index
 })
 
 # Add derived variables:
 # - USDT_RUB_price: conversion of RUB/USD to USDT/USD
-# - BTC_USDT_ratio: a proxy measure of crypto market 
+# - BTC_USDT_ratio: a proxy measure of crypto market
 data['USDT_RUB_price'] = data['RUB_USD'] / data['USDT_USD']
 data['BTC_USDT_ratio'] = data['BTC_Price'] / data['USDT_USD']
 
@@ -51,7 +52,7 @@ data['BTC_USDT_ratio'] = data['BTC_Price'] / data['USDT_USD']
 # - Endogenous: USDT/RUB exchange rate (treated as endogenous for model testing)
 # - Instruments: BTC/USDT ratio, USDT/CAD price, and gas price
 iv_model = IV2SLS(
-    dependent=data['Crude_Oil'],
+    dependent=data['MOEX_Index'],
     exog=sm.add_constant(data[['Oil_Price', 'Interest_Rate']]),
     endog=data['USDT_RUB_price'],
     instruments=data[['BTC_USDT_ratio', 'USDT_CAD_price', 'Gas_Price']]
@@ -63,7 +64,7 @@ print(iv_model.summary)
 # ---------------------------- Step 4: Durbin-Wu-Hausman Test ----------------------------
 # Step to test for endogeneity using residuals from first-stage regression
 
-# First-stage regression inputs and outputs- test whether the regressor (USDT_RUB_price) is endogenous.
+# First-stage regression inputs and outputs—test whether the regressor (USDT_RUB_price) is endogenous.
 # If YES then OLS estimates may be biased, and IV regression is preferred.
 X_first_stage = sm.add_constant(data[['BTC_USDT_ratio', 'USDT_CAD_price', 'Gas_Price']])
 y_first_stage = data['USDT_RUB_price']
