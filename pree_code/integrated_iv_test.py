@@ -197,3 +197,68 @@ plt.title(f'{outcome_var} Predictions: With/Without Residuals (Neural SDE DWH)')
 plt.xlabel('Time steps')
 plt.ylabel(outcome_var)
 plt.show()
+
+# ---------------------------- Step 8: Instrument Strength Chart (Neural SDE Analog) ----------------------------
+# We estimate instrument strength in neural setting by fitting a separate NeuralSDE for each instrument and comparing MSE reduction.
+
+f_stats = []
+labels = instrument_vars
+iv_colors = ['dodgerblue', 'limegreen', 'tomato', 'orange', 'purple', 'cyan']
+
+for idx, iv in enumerate(labels):
+    # Prepare single-IV data
+    X_iv = regression_data[[iv]].values
+    y_iv = regression_data[endogenous_var].values.reshape(-1, 1)
+    scaler_X_iv = MinMaxScaler()
+    scaler_y_iv = MinMaxScaler()
+    X_iv_scaled = scaler_X_iv.fit_transform(X_iv)
+    y_iv_scaled = scaler_y_iv.fit_transform(y_iv)
+
+    X_iv_tensor = torch.tensor(X_iv_scaled, dtype=torch.float32)
+    y_iv_tensor = torch.tensor(y_iv_scaled, dtype=torch.float32)
+    train_dataset_iv = TensorDataset(X_iv_tensor, y_iv_tensor)
+    train_loader_iv = DataLoader(train_dataset_iv, batch_size=batch_size, shuffle=True)
+
+    # Fit NeuralSDE (single instrument)
+    model_iv = NeuralSDE(hidden_size, output_size)
+    optimizer_iv = optim.Adam(model_iv.parameters(), lr=1e-3)
+    criterion_iv = nn.MSELoss()
+    num_epochs_iv = 10
+    for epoch in range(num_epochs_iv):
+        model_iv.train()
+        running_loss_iv = 0.0
+        for inputs, targets in train_loader_iv:
+            optimizer_iv.zero_grad()
+            y0_iv = inputs
+            ts_iv = torch.linspace(0, 1, 1)
+            outputs_iv = model_iv(ts_iv, y0_iv)
+            predictions_iv = outputs_iv[-1]
+            loss_iv = criterion_iv(predictions_iv, targets)
+            loss_iv.backward()
+            optimizer_iv.step()
+            running_loss_iv += loss_iv.item()
+    # Evaluate instrument's predictive power
+    model_iv.eval()
+    with torch.no_grad():
+        y0_eval_iv = X_iv_tensor
+        ts_eval_iv = torch.linspace(0, 1, 1)
+        y_pred_iv = model_iv(ts_eval_iv, y0_eval_iv)[-1].numpy()
+        mse_iv = np.mean((y_pred_iv - y_iv_scaled) ** 2)
+        # For a "strength" analog, we can use the reduction in variance explained by the instrument
+        # Or use a pseudo-F-stat: (Variance_explained / MSE)
+        var_explained = np.var(y_iv_scaled) - mse_iv
+        f_stat_approx = var_explained / mse_iv if mse_iv > 0 else np.nan
+        f_stats.append(float(f_stat_approx))
+
+# Plot pseudo-F-statistics for instrument strength
+plt.figure(figsize=(10, 5))
+plt.bar(labels, f_stats, color=iv_colors[:len(labels)])
+plt.axhline(y=1, color='black', linestyle='--', linewidth=1.2, label='Weak IV Threshold (approx. F = 1)')
+for i, val in enumerate(f_stats):
+    plt.text(i, val + 0.05, f"{val:.2f}", ha='center', va='bottom', fontsize=9)
+plt.title(f"Instrument Strength for {endogenous_var} (NeuralSDE pseudo-F)", fontsize=14)
+plt.ylabel("Pseudo-F-statistic (Variance explained / MSE)")
+plt.xlabel("Instrumental Variables")
+plt.legend()
+plt.tight_layout()
+plt.show()
