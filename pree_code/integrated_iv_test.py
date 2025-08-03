@@ -1,4 +1,6 @@
 # ---------------------------- Imports ----------------------------
+import os
+import sys
 import matplotlib
 matplotlib.use('TkAgg')
 import yfinance as yf
@@ -82,21 +84,21 @@ optimizer = optim.Adam(first_stage_sde.parameters(), lr=1e-3)
 
 train_dataset = TensorDataset(X_instruments_tensor, y_endogenous_tensor)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 for epoch in range(num_epochs):
-    first_stage_sde.train()
     running_loss = 0.0
     for inputs, targets in train_loader:
+        inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
-        y0 = inputs
-        ts = torch.linspace(0, 1, 1)
-        outputs = first_stage_sde(ts, y0)
-        predictions = outputs[-1]
-        loss = criterion(predictions, targets)
+        y0 = inputs[:, 0, 1].unsqueeze(1)
+        ts = torch.linspace(0, 1, inputs.size(1)).to(device)
+        solutions = first_stage_sde(ts, y0, inputs)
+        preds = solutions[-1]
+        loss = criterion(preds, targets)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-    print(f"First-stage SDE Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader):.4f}")
+
 
 # Compute residuals
 first_stage_sde.eval()
