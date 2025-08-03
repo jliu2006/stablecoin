@@ -12,6 +12,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import torch.nn as nn
 import torch.optim as optim
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from aj_code.sde import NeuralSDE
 
 # ---------------------------- Step 1: Load Financial Data ----------------------------
